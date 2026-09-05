@@ -18,6 +18,8 @@ import {
   Layers,
   Languages,
   FolderHeart,
+  Sparkles,
+  Plus,
 } from 'lucide-react';
 import { PlaceOfInterest, PlaceVisitStatus, PlaceCategory, PlaceList } from '../types';
 import { getListColorClasses, getListIconComponent } from './ManageListsModal';
@@ -32,6 +34,9 @@ interface PlaceCardProps {
   onEdit?: (place: PlaceOfInterest) => void;
   lists?: PlaceList[];
   onQuickAssignList?: (placeId: string, listId: string | undefined) => Promise<void>;
+  onOpenDetails?: (place: PlaceOfInterest) => void;
+  onAddToItinerary?: (place: PlaceOfInterest) => void;
+  isInItinerary?: boolean;
 }
 
 export const PlaceCard: React.FC<PlaceCardProps> = ({
@@ -44,23 +49,29 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
   onEdit,
   lists = [],
   onQuickAssignList,
+  onOpenDetails,
+  onAddToItinerary,
+  isInItinerary = false,
 }) => {
+  if (!place || !place.id) {
+    return null;
+  }
+
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [draftNotes, setDraftNotes] = useState(place.notes || '');
+  const [draftNotes, setDraftNotes] = useState(place?.notes || '');
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isChangingList, setIsChangingList] = useState(false);
 
-  const displayName = place.localizedName || place.name;
-  const originalName = place.originalName;
-  const hasOriginalName = originalName && originalName !== displayName;
+  const displayName = place?.localizedName || place?.name || 'Unnamed Place';
+  const originalName = place?.originalName;
+  const hasOriginalName = Boolean(originalName && originalName !== displayName);
 
-  const displayAddress = place.localizedAddress || place.address;
-  const originalAddress = place.originalAddress;
-  const hasOriginalAddress = originalAddress && originalAddress !== displayAddress;
+  const displayAddress = place?.localizedAddress || place?.address || 'No address specified';
+  const originalAddress = place?.originalAddress;
+  const hasOriginalAddress = Boolean(originalAddress && originalAddress !== displayAddress);
 
   // Find assigned list
-  const activePlaceListId = place.listId || (place.listIds && place.listIds[0]);
-  const assignedList = lists.find((l) => l.id === activePlaceListId);
+  const activePlaceListId = place?.listId || (place?.listIds && place.listIds[0]);
+  const assignedList = lists.find((l) => l?.id === activePlaceListId);
 
   const getCategoryIcon = (cat: PlaceCategory) => {
     switch (cat) {
@@ -243,24 +254,51 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
         </div>
       ) : null}
 
-      {/* Card Actions Bar */}
-      <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onEdit) {
-                onEdit(place);
-              } else {
-                setIsEditingNotes(!isEditingNotes);
-              }
-            }}
-            className="flex items-center gap-1 font-medium text-slate-600 hover:text-indigo-600 transition-colors"
-            title="Edit location details, coordinates, status or notes"
-          >
-            <Edit3 className="h-3.5 w-3.5" />
-            <span>Edit</span>
-          </button>
+      {/* Enhanced Quick Action Bar with Details & Itinerary */}
+      <div className="mt-3 flex flex-wrap items-center justify-between border-t border-slate-100 pt-2 text-xs gap-1.5">
+        <div className="flex items-center gap-1.5">
+          {onOpenDetails && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetails(place);
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/70 px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+              title="View Google Places photos, reviews & details"
+            >
+              <Sparkles className="h-3 w-3 text-indigo-600" />
+              <span>Details</span>
+            </button>
+          )}
+
+          {onAddToItinerary && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToItinerary(place);
+              }}
+              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors ${
+                isInItinerary
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+              title={isInItinerary ? 'Already in itinerary' : 'Add to trip itinerary'}
+            >
+              {isInItinerary ? (
+                <>
+                  <Check className="h-3 w-3 text-emerald-600" />
+                  <span>Queued</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3 w-3 text-indigo-600" />
+                  <span>+Trip</span>
+                </>
+              )}
+            </button>
+          )}
 
           {lists.length > 0 && onQuickAssignList && (
             <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -284,16 +322,21 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setIsEditingNotes(!isEditingNotes);
+              if (onEdit) {
+                onEdit(place);
+              } else {
+                setIsEditingNotes(!isEditingNotes);
+              }
             }}
-            className="text-[11px] text-slate-400 hover:text-slate-700 transition-colors"
-            title="Quick toggle inline notes"
+            className="flex items-center gap-1 font-medium text-slate-500 hover:text-indigo-600 transition-colors text-[11px]"
+            title="Edit location details, coordinates, status or notes"
           >
-            {place.notes ? 'Notes' : '+Note'}
+            <Edit3 className="h-3 w-3" />
+            <span>Edit</span>
           </button>
 
           <a
@@ -301,12 +344,12 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition-colors"
+            className="flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition-colors text-[11px]"
             title="Open in Google Maps for directions"
           >
-            <ExternalLink className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Directions</span>
+            <ExternalLink className="h-3 w-3" />
           </a>
+
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -317,7 +360,7 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
             className="text-slate-400 hover:text-rose-600 transition-colors p-1"
             title="Delete place"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3 w-3" />
           </button>
         </div>
       </div>

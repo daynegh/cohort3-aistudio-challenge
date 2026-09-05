@@ -56,7 +56,11 @@ import { ManualAddPlaceModal } from './ManualAddPlaceModal';
 import { EditPlaceModal } from './EditPlaceModal';
 import { ManageListsModal, getListColorClasses, getListIconComponent } from './ManageListsModal';
 import { LeafletPlacesMap } from './LeafletPlacesMap';
+import { PlaceDetailsModal } from './PlaceDetailsModal';
+import { ItineraryRouteDrawer } from './ItineraryRouteDrawer';
 import { requestGeminiPlaceSuggestions, SuggestedPlace } from '../services/geminiService';
+import { ItineraryStop, ItineraryRoute } from '../types';
+import { Route as RouteIcon } from 'lucide-react';
 
 interface PlacesTrackerProps {
   user: User;
@@ -108,6 +112,50 @@ const MapController: React.FC<{
       console.warn('Map fit bounds notice:', err);
     }
   }, [map, places, triggerFit]);
+
+  return null;
+};
+
+// Polyline Route renderer for Google Maps
+const GoogleMapRouteRenderer: React.FC<{
+  route: ItineraryRoute | null;
+}> = ({ route }) => {
+  const map = useMap();
+  const polylineRef = React.useRef<any>(null);
+
+  useEffect(() => {
+    if (!map) return;
+    if (polylineRef.current) {
+      polylineRef.current.setMap(null);
+      polylineRef.current = null;
+    }
+
+    if (route && route.polylinePoints && route.polylinePoints.length > 1 && (window as any).google?.maps?.Polyline) {
+      const path = route.polylinePoints.map(([lat, lng]) => ({ lat, lng }));
+      const polyline = new (window as any).google.maps.Polyline({
+        path,
+        geodesic: true,
+        strokeColor: '#4f46e5',
+        strokeOpacity: 0.85,
+        strokeWeight: 5,
+      });
+      polyline.setMap(map);
+      polylineRef.current = polyline;
+
+      if ((window as any).google?.maps?.LatLngBounds) {
+        const bounds = new (window as any).google.maps.LatLngBounds();
+        path.forEach((p) => bounds.extend(p));
+        map.fitBounds(bounds, 40);
+      }
+    }
+
+    return () => {
+      if (polylineRef.current) {
+        polylineRef.current.setMap(null);
+        polylineRef.current = null;
+      }
+    };
+  }, [map, route]);
 
   return null;
 };
@@ -269,6 +317,44 @@ export const PlacesTracker: React.FC<PlacesTrackerProps> = ({ user }) => {
   const [aiMood, setAiMood] = useState('Inspiring & Serene');
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<SuggestedPlace[]>([]);
+
+  // Place Details Modal State
+  const [detailsModalPlace, setDetailsModalPlace] = useState<PlaceOfInterest | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+
+  // Itinerary Route Drawer State
+  const [itineraryStops, setItineraryStops] = useState<ItineraryStop[]>([]);
+  const [currentRoute, setCurrentRoute] = useState<ItineraryRoute | null>(null);
+  const [isItineraryDrawerOpen, setIsItineraryDrawerOpen] = useState(false);
+
+  const handleOpenPlaceDetails = (place: PlaceOfInterest) => {
+    setDetailsModalPlace(place);
+    setIsDetailsModalOpen(true);
+  };
+
+  const handleToggleItineraryStop = (place: PlaceOfInterest) => {
+    setItineraryStops((prev) => {
+      const exists = prev.some(
+        (s) => s.id === place.id || (s.placeId && s.placeId === place.placeId) || (s.lat === place.lat && s.lng === place.lng)
+      );
+      if (exists) {
+        return prev.filter(
+          (s) => !(s.id === place.id || (s.placeId && s.placeId === place.placeId) || (s.lat === place.lat && s.lng === place.lng))
+        );
+      } else {
+        const newStop: ItineraryStop = {
+          id: place.id,
+          name: place.localizedName || place.name,
+          address: place.localizedAddress || place.address,
+          lat: place.lat,
+          lng: place.lng,
+          placeId: place.placeId,
+        };
+        return [...prev, newStop];
+      }
+    });
+    setIsItineraryDrawerOpen(true);
+  };
 
   // Keyboard shortcut listener to close any open modal on Escape
   useEffect(() => {
@@ -635,6 +721,21 @@ export const PlacesTracker: React.FC<PlacesTrackerProps> = ({ user }) => {
           >
             <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
             <span>AI Inspiration</span>
+          </button>
+
+          {/* Daily Itinerary & Multi-Stop Route Planner Button */}
+          <button
+            id="open-itinerary-btn"
+            onClick={() => setIsItineraryDrawerOpen(true)}
+            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold shadow-xs transition-colors ${
+              itineraryStops.length > 0
+                ? 'border-indigo-500 bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+            title="Open multi-stop itinerary and turn-by-turn route planner"
+          >
+            <RouteIcon className="h-3.5 w-3.5" />
+            <span>Itinerary {itineraryStops.length > 0 ? `(${itineraryStops.length})` : ''}</span>
           </button>
 
           {/* API Key Configuration Pill */}
@@ -1073,6 +1174,14 @@ export const PlacesTracker: React.FC<PlacesTrackerProps> = ({ user }) => {
                         onEdit={setPlaceBeingEdited}
                         lists={lists}
                         onQuickAssignList={handleQuickAssignList}
+                        onOpenDetails={handleOpenPlaceDetails}
+                        onAddToItinerary={handleToggleItineraryStop}
+                        isInItinerary={itineraryStops.some(
+                          (s) =>
+                            s?.id === place.id ||
+                            (s?.placeId && s.placeId === place.placeId) ||
+                            (s?.lat === place.lat && s?.lng === place.lng)
+                        )}
                       />
                     ))}
                   </div>
@@ -1119,20 +1228,32 @@ export const PlacesTracker: React.FC<PlacesTrackerProps> = ({ user }) => {
                       triggerFit={triggerFit}
                     />
 
+                    {/* Polyline Route Overlay */}
+                    <GoogleMapRouteRenderer route={currentRoute} />
+
                     {/* Advanced Markers for all filtered places */}
                     {filteredPlaces.map((place) => {
                       const pin = getPinProps(place.status);
+                      const stopIndex = itineraryStops.findIndex(
+                        (s) =>
+                          s?.id === place.id ||
+                          (s?.placeId && s.placeId === place.placeId) ||
+                          (Math.abs(s?.lat - place.lat) < 0.0001 && Math.abs(s?.lng - place.lng) < 0.0001)
+                      );
+                      const isStop = stopIndex >= 0;
+
                       return (
                         <AdvancedMarker
                           key={place.id}
                           position={{ lat: place.lat, lng: place.lng }}
-                          title={place.name}
+                          title={`${place.name}${isStop ? ` (Stop ${stopIndex + 1})` : ''}`}
                           onClick={() => setSelectedPlace(place)}
                         >
                           <Pin
-                            background={pin.background}
-                            borderColor={pin.borderColor}
-                            glyphColor={pin.glyphColor}
+                            background={isStop ? '#4338ca' : pin.background}
+                            borderColor={isStop ? '#ffffff' : pin.borderColor}
+                            glyphColor={isStop ? '#ffffff' : pin.glyphColor}
+                            glyph={isStop ? `${stopIndex + 1}` : undefined}
                           />
                         </AdvancedMarker>
                       );
@@ -1145,7 +1266,7 @@ export const PlacesTracker: React.FC<PlacesTrackerProps> = ({ user }) => {
                         onCloseClick={() => setSelectedPlace(null)}
                         headerDisabled={false}
                       >
-                        <div className="p-1 max-w-[240px] text-slate-900">
+                        <div className="p-1 max-w-[260px] text-slate-900">
                           <div className="flex items-center gap-1 mb-1">
                             <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 border border-indigo-100 uppercase">
                               {selectedPlace.category.replace('_', ' ')}
@@ -1179,40 +1300,54 @@ export const PlacesTracker: React.FC<PlacesTrackerProps> = ({ user }) => {
                               "{selectedPlace.notes}"
                             </p>
                           )}
-                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                            <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                                `${selectedPlace.localizedName || selectedPlace.name} ${selectedPlace.localizedAddress || selectedPlace.address}`
-                              )}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-1"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              <span>Google Maps</span>
-                            </a>
-                            <div className="flex items-center gap-1.5">
+                          
+                          {/* Rich Actions */}
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPlaceDetails(selectedPlace)}
+                                className="inline-flex items-center gap-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-1 text-[10px] font-semibold transition-colors"
+                              >
+                                <Sparkles className="h-2.5 w-2.5" />
+                                <span>Details</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleItineraryStop(selectedPlace)}
+                                className="inline-flex items-center gap-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 text-[10px] font-semibold transition-colors"
+                              >
+                                <span>
+                                  {itineraryStops.some(
+                                    (s) =>
+                                      s?.id === selectedPlace.id ||
+                                      (s?.lat === selectedPlace.lat && s?.lng === selectedPlace.lng)
+                                  )
+                                    ? '✓ Queued'
+                                    : '+Trip'}
+                                </span>
+                              </button>
+                            </div>
+                            
+                            <div className="flex items-center gap-1">
                               <button
                                 onClick={() => setPlaceBeingEdited(selectedPlace)}
-                                className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-medium flex items-center gap-1 transition-colors"
+                                className="text-[10px] text-slate-500 hover:text-indigo-600 px-1 py-0.5 font-medium flex items-center gap-0.5"
                                 title="Edit place details"
                               >
                                 <Edit3 className="h-3 w-3" />
                                 <span>Edit</span>
                               </button>
-                              <button
-                                onClick={() => {
-                                  const nextStatus: Record<PlaceVisitStatus, PlaceVisitStatus> = {
-                                    want_to_visit: 'visited',
-                                    visited: 'favorite',
-                                    favorite: 'want_to_visit',
-                                  };
-                                  handleUpdateStatus(selectedPlace.id, nextStatus[selectedPlace.status]);
-                                }}
-                                className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-medium transition-colors"
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                  `${selectedPlace.localizedName || selectedPlace.name} ${selectedPlace.localizedAddress || selectedPlace.address}`
+                                )}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] font-medium text-slate-500 hover:text-indigo-600 flex items-center gap-0.5"
                               >
-                                Cycle Status
-                              </button>
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
                             </div>
                           </div>
                         </div>
@@ -1396,6 +1531,16 @@ export const PlacesTracker: React.FC<PlacesTrackerProps> = ({ user }) => {
                       onUpdateNotes={handleUpdateNotes}
                       onDelete={handleDeletePlace}
                       onEdit={setPlaceBeingEdited}
+                      lists={lists}
+                      onQuickAssignList={handleQuickAssignList}
+                      onOpenDetails={handleOpenPlaceDetails}
+                      onAddToItinerary={handleToggleItineraryStop}
+                      isInItinerary={itineraryStops.some(
+                        (s) =>
+                          s?.id === place.id ||
+                          (s?.placeId && s.placeId === place.placeId) ||
+                          (s?.lat === place.lat && s?.lng === place.lng)
+                      )}
                     />
                   ))}
                 </div>
@@ -1413,6 +1558,10 @@ export const PlacesTracker: React.FC<PlacesTrackerProps> = ({ user }) => {
               onOpenEditPlace={(p) => setPlaceBeingEdited(p)}
               onDeletePlace={(id) => handleDeletePlace(id)}
               onUpdateStatus={(id, s) => handleUpdateStatus(id, s)}
+              itineraryRoute={currentRoute}
+              itineraryStops={itineraryStops}
+              onOpenPlaceDetails={handleOpenPlaceDetails}
+              onAddToItinerary={handleToggleItineraryStop}
             />
 
             {/* Map Engine Bar & Optional Google Maps Platform Integration */}
@@ -1948,6 +2097,46 @@ export const PlacesTracker: React.FC<PlacesTrackerProps> = ({ user }) => {
         activeListId={activeListId}
         placesCountByList={placesCountByList}
         totalPlacesCount={totalCount}
+      />
+
+      {/* Place Details Modal (Google Places API New Photos & Reviews) */}
+      <PlaceDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => {
+          setIsDetailsModalOpen(false);
+          setDetailsModalPlace(null);
+        }}
+        place={detailsModalPlace}
+        onAddToItinerary={handleToggleItineraryStop}
+        isInItinerary={Boolean(
+          detailsModalPlace &&
+            itineraryStops.some(
+              (s) => s.id === detailsModalPlace.id || (s.lat === detailsModalPlace.lat && s.lng === detailsModalPlace.lng)
+            )
+        )}
+      />
+
+      {/* Daily Itinerary & Multi-Stop Route Planning Drawer */}
+      <ItineraryRouteDrawer
+        isOpen={isItineraryDrawerOpen}
+        onClose={() => setIsItineraryDrawerOpen(false)}
+        stops={itineraryStops}
+        onUpdateStops={setItineraryStops}
+        availablePlaces={filteredPlaces}
+        onRouteCalculated={(route) => setCurrentRoute(route)}
+        currentRoute={currentRoute}
+        onFocusStopOnMap={(stop) => {
+          const matched = places.find(
+            (p) => p.id === stop.id || (p.lat === stop.lat && p.lng === stop.lng)
+          );
+          if (matched) {
+            setSelectedPlace(matched);
+          }
+        }}
+        onClearRoute={() => {
+          setCurrentRoute(null);
+          setItineraryStops([]);
+        }}
       />
     </div>
   );

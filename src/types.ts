@@ -94,8 +94,92 @@ export interface PlaceOfInterest {
   rating?: number;
   tags?: string[];
   photoUrl?: string;
+  editorialSummary?: string;
+  priceLevel?: string;
   linkedEntryId?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface GooglePlacePhoto {
+  name: string; // e.g. places/ChIJ.../photos/AUac...
+  proxyUrl: string; // /api/places/photo?name=...
+  authorAttributions?: Array<{
+    displayName: string;
+    uri?: string;
+    photoUri?: string;
+  }>;
+  widthPx?: number;
+  heightPx?: number;
+}
+
+export interface GooglePlaceReview {
+  authorName: string;
+  authorPhotoUri?: string;
+  rating: number;
+  text: string;
+  relativePublishTimeDescription?: string;
+  publishTime?: string;
+}
+
+export interface GooglePlaceDetails {
+  placeId: string;
+  name: string;
+  formattedAddress: string;
+  location: { lat: number; lng: number };
+  rating?: number;
+  userRatingCount?: number;
+  priceLevel?: string;
+  editorialSummary?: string;
+  isOpenNow?: boolean;
+  weekdayDescriptions?: string[];
+  photos?: GooglePlacePhoto[];
+  reviews?: GooglePlaceReview[];
+  websiteUri?: string;
+  googleMapsUri?: string;
+  source: 'google' | 'fallback';
+}
+
+export interface RouteStep {
+  instruction: string;
+  distanceFormatted: string;
+  durationFormatted: string;
+  maneuver?: string;
+}
+
+export interface RouteLeg {
+  distanceMeters: number;
+  distanceFormatted: string;
+  durationSeconds: number;
+  durationFormatted: string;
+  startLocation: { lat: number; lng: number };
+  endLocation: { lat: number; lng: number };
+  startName?: string;
+  endName?: string;
+  steps: RouteStep[];
+}
+
+export interface ItineraryStop {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  placeId?: string;
+}
+
+export interface ItineraryRoute {
+  totalDistanceMeters: number;
+  totalDistanceFormatted: string;
+  totalDurationSeconds: number;
+  totalDurationFormatted: string;
+  travelMode: 'WALK' | 'DRIVE' | 'TRANSIT' | 'BICYCLE';
+  polylinePoints: Array<[number, number]>; // [lat, lng][]
+  legs: RouteLeg[];
+  optimizedWaypointOrder?: number[];
+  stops: ItineraryStop[];
+  googleMapsDirectionsUrl: string;
+  source: 'google_routes' | 'osrm';
+}
+
 

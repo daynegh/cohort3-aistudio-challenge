@@ -20,11 +20,15 @@ export default function App() {
   const [currentEntry, setCurrentEntry] = useState<JournalEntry | null>(null);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isMonitoringModalOpen, setIsMonitoringModalOpen] = useState(false);
+  const [isHealthLogsUnlocked, setIsHealthLogsUnlocked] = useState(false);
 
   // 1. Listen for Authentication state changes
   useEffect(() => {
     const unsubscribe = subscribeToAuth((currentUser) => {
       setUser(currentUser);
+      if (!currentUser) {
+        setIsHealthLogsUnlocked(false);
+      }
       setAuthLoading(false);
     });
     return () => unsubscribe();
@@ -98,6 +102,8 @@ export default function App() {
         setActiveTab={setActiveTab}
         onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
         onOpenMonitoringModal={() => setIsMonitoringModalOpen(true)}
+        isHealthLogsUnlocked={isHealthLogsUnlocked}
+        onUnlockHealthLogs={() => setIsHealthLogsUnlocked(true)}
       />
 
       {/* Main Body */}
@@ -132,13 +138,17 @@ export default function App() {
             ReflectAI • User-Isolated Cloud Firestore & Gemini 3.6 Flash Processing Engine
           </p>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsMonitoringModalOpen(true)}
-              className="text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer"
-            >
-              Live Monitoring & Key Rotation
-            </button>
-            <span>•</span>
+            {user && isHealthLogsUnlocked && (
+              <>
+                <button
+                  onClick={() => setIsMonitoringModalOpen(true)}
+                  className="text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer"
+                >
+                  Live Monitoring & Key Rotation
+                </button>
+                <span>•</span>
+              </>
+            )}
             <button
               onClick={() => setIsSecurityModalOpen(true)}
               className="text-slate-500 hover:text-slate-800 underline decoration-slate-300 cursor-pointer"

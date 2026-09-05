@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { User } from 'firebase/auth';
-import { LogOut, ShieldCheck, Sparkles, BookOpen, MapPin, Activity } from 'lucide-react';
+import { LogOut, ShieldCheck, Sparkles, BookOpen, MapPin, Activity, Check } from 'lucide-react';
 import { signOutUser } from '../lib/firebase';
 
 interface NavbarProps {
@@ -9,6 +9,8 @@ interface NavbarProps {
   setActiveTab: (tab: 'editor' | 'history' | 'places') => void;
   onOpenSecurityModal: () => void;
   onOpenMonitoringModal: () => void;
+  isHealthLogsUnlocked: boolean;
+  onUnlockHealthLogs: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,7 +19,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   onOpenSecurityModal,
   onOpenMonitoringModal,
+  isHealthLogsUnlocked,
+  onUnlockHealthLogs,
 }) => {
+  const [tapCount, setTapCount] = useState(0);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleSignOut = async () => {
     try {
       await signOutUser();
@@ -26,22 +34,62 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
+  const handleBrandTap = () => {
+    // Only available when an authenticated user is logged in
+    if (!user) return;
+    if (isHealthLogsUnlocked) return;
+
+    if (tapTimeoutRef.current) {
+      clearTimeout(tapTimeoutRef.current);
+    }
+
+    const nextCount = tapCount + 1;
+    if (nextCount >= 5) {
+      onUnlockHealthLogs();
+      setTapCount(0);
+      setFeedbackMessage('Health & Logs diagnostics unlocked');
+      setTimeout(() => setFeedbackMessage(null), 3000);
+    } else {
+      setTapCount(nextCount);
+      // Reset counter after 3 seconds of inactivity
+      tapTimeoutRef.current = setTimeout(() => {
+        setTapCount(0);
+      }, 3000);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Brand */}
+        {/* Brand with 5-Tap Unlock for Authenticated Users */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
-            <Sparkles className="h-5 w-5" />
+          <div
+            id="reflect-ai-brand"
+            onClick={handleBrandTap}
+            className={`flex items-center gap-3 select-none transition-transform ${
+              user ? 'cursor-pointer active:scale-95' : ''
+            }`}
+            title={user && !isHealthLogsUnlocked ? undefined : 'Reflect AI'}
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-lg font-semibold tracking-tight text-slate-900">
+                Reflect AI
+              </span>
+              <span className="ml-2 hidden rounded-full bg-indigo-50 border border-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 sm:inline-block">
+                Gemini 3.6 Flash
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-lg font-semibold tracking-tight text-slate-900">
-              ReflectAI
-            </span>
-            <span className="ml-2 hidden rounded-full bg-indigo-50 border border-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 sm:inline-block">
-              Gemini 3.6 Flash
-            </span>
-          </div>
+
+          {feedbackMessage && (
+            <div className="hidden md:flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 animate-in fade-in duration-200">
+              <Check className="h-3 w-3" />
+              <span>{feedbackMessage}</span>
+            </div>
+          )}
         </div>
 
         {/* Center Navigation if signed in */}
@@ -88,16 +136,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Actions & User Profile */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Live Monitoring Trigger */}
-          <button
-            id="monitoring-modal-btn"
-            onClick={onOpenMonitoringModal}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
-            title="View Live Monitoring, Key Rotation Health & Logs"
-          >
-            <Activity className="h-3.5 w-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">Health & Logs</span>
-          </button>
+          {/* Live Monitoring Trigger - ONLY visible when user is logged in AND unlocked after 5 taps */}
+          {user && isHealthLogsUnlocked && (
+            <button
+              id="monitoring-modal-btn"
+              onClick={onOpenMonitoringModal}
+              className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 hover:text-indigo-900 transition-colors cursor-pointer animate-in fade-in duration-200"
+              title="View Live Monitoring, Key Rotation Health & Logs"
+            >
+              <Activity className="h-3.5 w-3.5 text-indigo-600 animate-pulse" />
+              <span className="hidden sm:inline">Health & Logs</span>
+            </button>
+          )}
 
           {/* Security Architecture Trigger */}
           <button

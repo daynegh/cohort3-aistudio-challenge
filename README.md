@@ -61,6 +61,7 @@ A production-grade, full-stack reflection journal and interactive travel mapping
 | `/api/places/search` | `GET` | Proxies multi-tier worldwide location search queries. |
 | `/api/places/details` | `GET` | Fetches place details and coordinates from Google Places API. |
 | `/api/places/geocode` | `GET` | Reverse and forward geocoding with multi-engine fallback. |
+| `/api/places/route` | `POST` | Multi-stop itinerary directions and distance/duration calculations. |
 | `/api/config/maps-key` | `GET` | Delivers configured Maps Platform client credentials securely. |
 | `/api/health` | `GET` | Health check endpoint returning server and service status. |
 
@@ -76,25 +77,45 @@ A production-grade, full-stack reflection journal and interactive travel mapping
 | **Maps & Geo Services** | Google Maps Platform + Leaflet / OSM | Interactive `@vis.gl/react-google-maps` with AdvancedMarkerElement & Nominatim fallback. |
 | **Backend Service Layer** | Express.js on Node.js (Full-Stack) | Secure server proxy shielding API credentials and third-party keys from browser clients. |
 | **Secret Management** | Google Cloud Secret Manager | Dynamic runtime secret injection for `GEMINI_API_KEY`. |
-| **Frontend Framework** | React 18 + Vite + Tailwind CSS | Fluid, responsive user interface with Lucide icons and modern UI components. |
+| **Frontend Framework** | React 19 + Vite + Tailwind CSS | Fluid, responsive user interface with Lucide icons and modern UI components. |
 
 ---
 
-## 1. Prerequisites & GCP Configuration
+## 1. Prerequisites & Environment Configurations
 
-### Enable Google Cloud APIs
+### Environment Variables Matrix
+
+| Variable | Scope | Required | Purpose & Example |
+| :--- | :--- | :--- | :--- |
+| `GEMINI_API_KEY` | Server | **Yes** | Secret Manager key for Google Gemini Generative AI calls. |
+| `GOOGLE_MAPS_API_KEY` | Server / Client | Optional | API key for Google Maps Platform Javascript API & Places Autocomplete. (Falls back to Leaflet if omitted). |
+| `VITE_GOOGLE_MAPS_API_KEY` | Client | Optional | Public Maps key or Maps Demo Key for client-side map rendering. |
+| `APP_URL` | Server | Optional | Host domain used for self-referential links and OAuth callbacks. |
+| `PORT` | Server | Default: `3000` | Port on which the unified Express + Vite production server listens. |
+
+### Enable Google Cloud Services
 Run the following commands using the `gcloud` CLI to enable the necessary Google Cloud services:
 
 ```bash
 # Set your active GCP project
 gcloud config set project YOUR_PROJECT_ID
 
-# Enable Cloud Run, Secret Manager, and Cloud Firestore APIs
+# Enable Cloud Run, Secret Manager, Cloud Firestore, and Google Maps APIs
 gcloud services enable \
   run.googleapis.com \
   secretmanager.googleapis.com \
-  firestore.googleapis.com
+  firestore.googleapis.com \
+  maps-backend.googleapis.com \
+  places-backend.googleapis.com \
+  geocoding-backend.googleapis.com \
+  routes.googleapis.com
 ```
+
+### Firebase Authentication Setup
+1. Open the [Firebase Console](https://console.firebase.google.com/) and link your Google Cloud project.
+2. In the **Build** menu, navigate to **Authentication** $\rightarrow$ **Sign-in method**.
+3. Enable **Google** as a Sign-in provider and configure your Project support email.
+4. Under **Settings** $\rightarrow$ **Authorized domains**, ensure your Cloud Run domain (e.g. `your-service-xyz.a.run.app`) and development domains are added.
 
 ---
 
@@ -117,7 +138,7 @@ gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
 
 ## 3. Database Security Configuration (Cloud Firestore)
 
-Deploy the strict, user-isolated Firestore security rules. No unauthenticated reads or cross-user queries are permitted:
+Deploy strict, owner-isolated Firestore security rules. Unauthenticated reads, cross-user mutations, or wildcard access paths are strictly rejected:
 
 ```javascript
 rules_version = '2';
@@ -146,8 +167,17 @@ service cloud.firestore {
 }
 ```
 
-Deploy the rules via the Firebase CLI:
+### Deploying Security Rules
+Deploy the security rules directly to your Firestore database using the Firebase CLI:
+
 ```bash
+# Install Firebase CLI if not present
+npm install -g firebase-tools
+
+# Login to Firebase
+firebase login
+
+# Deploy rules from firestore.rules
 firebase deploy --only firestore:rules
 ```
 
@@ -155,16 +185,17 @@ firebase deploy --only firestore:rules
 
 ## 4. Google Cloud Run Deployment Flow
 
-Build and deploy the application container to Google Cloud Run:
+Build and deploy the application container directly to Google Cloud Run:
 
 ```bash
-# Build and deploy service with Secret Manager binding
+# Build and deploy service with Secret Manager secret injection
 gcloud run deploy reflect-ai-service \
   --source=. \
   --region=us-central1 \
   --platform=managed \
   --allow-unauthenticated \
   --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+  --set-env-vars="NODE_ENV=production" \
   --port=3000
 ```
 
