@@ -1,0 +1,6 @@
+{
+  "name": "Reflection & Journal Assistant",
+  "description": "A private, authenticated journaling app using Gemini 3.6 Flash and Cloud Firestore with Google Maps API service for tracking places of interest to visit.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

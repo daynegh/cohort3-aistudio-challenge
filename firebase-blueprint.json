@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "A user-authored reflection or journal entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "mode": { "type": "string", "enum": ["reflection", "summary", "brainstorming", "action_plan"] },
+        "mood": { "type": "string", "maxLength": 50 },
+        "messages": { "type": "array" },
+        "summary": { "type": "string", "maxLength": 5000 },
+        "actionItems": { "type": "array" },
+        "location": {
+          "type": "object",
+          "description": "Optional pinned geographical location associated with the reflection",
+          "properties": {
+            "name": { "type": "string", "maxLength": 200 },
+            "originalName": { "type": "string", "maxLength": 200 },
+            "localizedName": { "type": "string", "maxLength": 200 },
+            "address": { "type": "string", "maxLength": 500 },
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "placeId": { "type": "string", "maxLength": 200 },
+            "notes": { "type": "string", "maxLength": 500 }
+          }
+        },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "mode", "messages", "createdAt", "updatedAt"]
+    },
+    "PlaceList": {
+      "title": "PlaceList",
+      "description": "A custom user-defined list or itinerary of places to visit.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "color": { "type": "string", "maxLength": 30 },
+        "icon": { "type": "string", "maxLength": 50 },
+        "isDefault": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "createdAt", "updatedAt"]
+    },
+    "PlaceOfInterest": {
+      "title": "PlaceOfInterest",
+      "description": "A tracked place of interest to visit on Google Maps.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 200 },
+        "originalName": { "type": "string", "maxLength": 200 },
+        "localizedName": { "type": "string", "maxLength": 200 },
+        "address": { "type": "string", "maxLength": 500 },
+        "originalAddress": { "type": "string", "maxLength": 500 },
+        "localizedAddress": { "type": "string", "maxLength": 500 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "placeId": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "enum": ["nature_parks", "cafes_food", "arts_culture", "historical", "travel_lodging", "activities", "other"] },
+        "status": { "type": "string", "enum": ["want_to_visit", "visited", "favorite"] },
+        "listId": { "type": "string", "maxLength": 100 },
+        "listIds": { "type": "array" },
+        "notes": { "type": "string", "maxLength": 2000 },
+        "rating": { "type": "number" },
+        "tags": { "type": "array" },
+        "photoUrl": { "type": "string", "maxLength": 1000 },
+        "linkedEntryId": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "lat", "lng", "category", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/entries/{entryId}": {
+      "schema": "JournalEntry",
+      "description": "User isolated reflection entries"
+    },
+    "/users/{userId}/places/{placeId}": {
+      "schema": "PlaceOfInterest",
+      "description": "User isolated places of interest for Google Maps tracking"
+    },
+    "/users/{userId}/lists/{listId}": {
+      "schema": "PlaceList",
+      "description": "User custom multi-lists of places to visit"
+    }
+  }
+}
